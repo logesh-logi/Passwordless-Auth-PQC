@@ -1,5 +1,7 @@
 package com.auth.pqcserver.controller;
 
+import com.auth.pqcserver.dto.UserCredentialDto;
+import com.auth.pqcserver.service.AuthService;
 import com.auth.pqcserver.utils.JwtUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,42 +12,36 @@ import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "*")
 @RestController
-@RequestMapping("/api")  // This requires authentication
+@RequestMapping("/api")  // Endpoints within this controller require authentication
 public class ProtectedController {
 
-    private final JwtUtils jwtUtil;
     private static final Logger logger = LoggerFactory.getLogger(ProtectedController.class);
+    private final AuthService authService;
 
-    public ProtectedController(JwtUtils jwtUtil) {
-        this.jwtUtil = jwtUtil;
+    public ProtectedController(AuthService authService) {
+        this.authService = authService;
     }
 
+    /**
+     * Retrieves authenticated user credentials.
+     *
+     * @return UserCredentialDto containing the authenticated user's details.
+     */
     @GetMapping("/user")
-    public ResponseEntity<String> getUserInfo() {
-        logger.info("getUserInfo endpoint called");
+    public ResponseEntity<UserCredentialDto> getUserInfo() {
+        logger.info("[USER INFO REQUEST] - Retrieving user information");
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication != null) {
-            logger.info("Authentication found: " + authentication.getName());
-            logger.info("Authorities: " + authentication.getAuthorities());
-            return ResponseEntity.ok("Authenticated user: " + authentication.getName());
-        } else {
-            logger.warn("No authentication found in SecurityContext");
-            return ResponseEntity.status(401).body("Not authenticated");
+        if (authentication == null || !authentication.isAuthenticated()) {
+            logger.warn("[UNAUTHORIZED ACCESS] - No valid authentication found");
+            return ResponseEntity.status(401).body(new UserCredentialDto("null", "null","null", "null"));
         }
-    }
 
-    @GetMapping("/dashboard")
-    public ResponseEntity<String> getDashboardData() {
-        logger.info("getDashboardData endpoint called");
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return ResponseEntity.ok("Welcome to your dashboard, " + authentication.getName());
-    }
+        String username = authentication.getName();
+        logger.info("[USER AUTHENTICATED] - Username: {}, Roles: {}", username, authentication.getAuthorities());
 
-    // Simple test endpoint
-    @GetMapping("/test")
-    public ResponseEntity<String> test() {
-        logger.info("Test endpoint reached");
-        return ResponseEntity.ok("Test endpoint reached");
+        UserCredentialDto userCredentialDto = authService.getUserCredentials(username);
+        return ResponseEntity.ok(userCredentialDto);
     }
 }

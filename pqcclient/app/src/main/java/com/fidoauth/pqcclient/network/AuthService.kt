@@ -9,8 +9,8 @@ import retrofit2.http.Query
 interface AuthService {
 
     // Start registration process (server provides challenge)
-    @GET("auth/register/start")
-    suspend fun startRegistration(@Query("username") username: String): RegistrationRequestDto
+    @POST("auth/register/start")
+    suspend fun startRegistration(@Body registerDto: RegisterDto): RegistrationRequestDto
 
     // Finish registration (client sends signed challenge and keys)
     @POST("auth/register/finish")
@@ -32,5 +32,5 @@ interface AuthService {
 
     @GET("api/user")
     suspend fun getProtectedData(
-    ): String
+    ): UserDataDto
 }

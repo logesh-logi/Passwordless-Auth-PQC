@@ -1,10 +1,15 @@
 package com.fidoauth.pqcclient.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,165 +25,106 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun AnimatedAuthProcess(
+    isRegisterMode: Boolean,
     showKeyGeneration: Boolean,
     showServerComm: Boolean,
     showSuccess: Boolean
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "authAnimation")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dotAnimation"
-    )
-
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Only render the component if at least one step is active
-        if (showKeyGeneration || showServerComm || showSuccess) {
-            // Step 1: Key Generation
-            ProcessStep(
-                title = "Generating Keys",
-                description = "Creating hybrid RSA-Dilithium key pair",
-                isActive = showKeyGeneration && !showServerComm && !showSuccess,
-                isCompleted = (showServerComm || showSuccess) && showKeyGeneration,
-                isVisible = true,  // Always visible when component renders
-                dotAlpha = dotAlpha
+        // Key Generation/Loading Step
+        AnimatedVisibility(
+            visible = showKeyGeneration,
+            enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(300))
+        ) {
+            AuthProcessStep(
+                active = showKeyGeneration && !showServerComm && !showSuccess,
+                completed = showServerComm || showSuccess,
+                label = if (isRegisterMode) "Generating Secure Keys" else "Loading Secure Keys"
             )
+        }
 
-            // Connecting line between steps
-            if (showKeyGeneration) {
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(16.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                )
-            }
-
-            // Step 2: Server Communication
-            ProcessStep(
-                title = "Server Verification",
-                description = "Verifying signatures with the server",
-                isActive = showServerComm && !showSuccess,
-                isCompleted = showSuccess && showServerComm,
-                isVisible = showKeyGeneration,  // Only visible after key generation starts
-                dotAlpha = dotAlpha
+        // Server Communication Step
+        AnimatedVisibility(
+            visible = showServerComm || showSuccess,
+            enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(300))
+        ) {
+            AuthProcessStep(
+                active = showServerComm && !showSuccess,
+                completed = showSuccess,
+                label = "Communicating with Server"
             )
+        }
 
-            // Connecting line between steps
-            if (showServerComm) {
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(16.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                )
-            }
-
-            // Step 3: Success
-            ProcessStep(
-                title = "Authentication Complete",
-                description = "Protected with quantum-resistant security",
-                isActive = false,  // Never in "active" state, only completed
-                isCompleted = showSuccess,
-                isVisible = showServerComm,  // Only visible after server comm starts
-                dotAlpha = dotAlpha
+        // Success Step
+        AnimatedVisibility(
+            visible = showSuccess,
+            enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(300))
+        ) {
+            AuthProcessStep(
+                active = showSuccess,
+                completed = showSuccess,
+                label = "Authentication Successful"
             )
         }
     }
 }
 
-@Composable
-fun ProcessStep(
-    title: String,
-    description: String,
-    isActive: Boolean,
-    isCompleted: Boolean,
-    isVisible: Boolean = true,
-    dotAlpha: Float
-) {
-    if (!isVisible) return
 
+@Composable
+fun AuthProcessStep(
+    active: Boolean,
+    completed: Boolean,
+    label: String
+) {
     Row(
-        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (isVisible) 1f else 0f)
-            .padding(vertical = 4.dp)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // Status indicator
         Box(
-            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(32.dp)
-                .padding(end = 12.dp)
+                .size(24.dp)
+                .background(
+                    when {
+                        completed -> MaterialTheme.colorScheme.primary
+                        active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            when {
-                isCompleted -> {
-                    // Show checkmark for completed step using Material icons
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = "Completed",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                isActive -> {
-                    // Show pulsing circle for active step
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .alpha(dotAlpha)
-                            .background(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = MaterialTheme.shapes.small
-                            )
-                    )
-                }
-                else -> {
-                    // Show empty circle for future step
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .alpha(0.3f)
-                            .background(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                shape = MaterialTheme.shapes.small
-                            )
-                    )
-                }
+            if (active && !completed) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp
+                )
+            } else if (completed) {
+                Text(
+                    "✓",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
 
-        // Step text content
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = when {
-                    isCompleted -> MaterialTheme.colorScheme.primary
-                    isActive -> MaterialTheme.colorScheme.onSurface
-                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                }
-            )
+        Spacer(modifier = Modifier.width(12.dp))
 
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isActive || isCompleted) 0.7f else 0.4f),
-                textAlign = TextAlign.Start
-            )
-        }
+        // Label
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = when {
+                active || completed -> MaterialTheme.colorScheme.onBackground
+                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            }
+        )
     }
 }

@@ -3,23 +3,19 @@ package com.fidoauth.pqcclient.ui.screens
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,11 +23,50 @@ import androidx.navigation.NavController
 import com.fidoauth.pqcclient.auth.SecureStorage
 import com.fidoauth.pqcclient.network.RetrofitClient
 import com.fidoauth.pqcclient.ui.components.SecurityDetailItem
-import com.fidoauth.pqcclient.ui.theme.QuantumColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.cos
-import kotlin.math.sin
+import android.util.Base64
+
+@Composable
+fun MinimalistSecurityIndicator() {
+    val infiniteTransition = rememberInfiniteTransition(label = "securityAnimation")
+    val pulseEffect by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutQuad),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseEffect"
+    )
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = Modifier
+            .size(90.dp)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(90.dp)) {
+            drawCircle(
+                color = primaryColor.copy(alpha = 0.2f * pulseEffect),
+                radius = size.minDimension / 2f
+            )
+            drawCircle(
+                color = primaryColor.copy(alpha = 0.5f),
+                radius = size.minDimension / 3f
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Default.Security,
+            contentDescription = "Security Indicator",
+            tint = primaryColor,
+            modifier = Modifier.size(30.dp)
+        )
+    }
+}
 
 @Composable
 fun DashboardScreen(navController: NavController) {
@@ -40,174 +75,182 @@ fun DashboardScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Enhanced security status animations
-    val infiniteTransition = rememberInfiniteTransition(label = "securityAnimations")
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
-    // Pulse animation
-    val securityPulse by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseEffect"
-    )
-
-    // Rotation animation for shield effect
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing)
-        ),
-        label = "rotationEffect"
-    )
-
-    // Scanner line animation
-    val scannerPosition by infiniteTransition.animateFloat(
-        initialValue = -100f,
-        targetValue = 100f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scannerEffect"
-    )
-
-    // Pre-fetch theme colors for Canvas usage
-    val gridColor = MaterialTheme.colorScheme.primary
-    val tertiaryColor = MaterialTheme.colorScheme.tertiary
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
-                        MaterialTheme.colorScheme.background.copy(alpha = 0.8f)
-                    )
-                )
-            )
+            .background(backgroundColor),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Background grid effect
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val gridSpacing = 40f
-            val gridAlpha = 0.07f
-
-            for (i in 0..size.width.toInt() step gridSpacing.toInt()) {
-                drawLine(
-                    color = gridColor.copy(alpha = gridAlpha),
-                    start = Offset(i.toFloat(), 0f),
-                    end = Offset(i.toFloat(), size.height),
-                    strokeWidth = 1f
-                )
-            }
-
-            for (i in 0..size.height.toInt() step gridSpacing.toInt()) {
-                drawLine(
-                    color = gridColor.copy(alpha = gridAlpha),
-                    start = Offset(0f, i.toFloat()),
-                    end = Offset(size.width, i.toFloat()),
-                    strokeWidth = 1f
-                )
-            }
-        }
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(45.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
+            MinimalistSecurityIndicator()
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Main Data Card
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 24.dp),
-                contentAlignment = Alignment.Center
+                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = surfaceColor),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                // Enhanced security indicator with rotation and gradient
-                Canvas(modifier = Modifier.size(180.dp)) {
-                    // Outer rotating circle
-                    val outerCircleRadius = size.minDimension / 2
-                    val dotCount = 36
-                    val dotRadius = 3f
-
-                    for (i in 0 until dotCount) {
-                        val angle = (i * 360f / dotCount + rotation) % 360
-                        val radius = outerCircleRadius * 0.9f
-                        val x = center.x + radius * cos(Math.toRadians(angle.toDouble())).toFloat()
-                        val y = center.y + radius * sin(Math.toRadians(angle.toDouble())).toFloat()
-
-                        drawCircle(
-                            color = tertiaryColor.copy(alpha = 0.7f),
-                            radius = dotRadius,
-                            center = Offset(x, y)
-                        )
-                    }
-
-                    // Inner circle with gradient
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                tertiaryColor.copy(alpha = 0.2f * securityPulse),
-                                tertiaryColor.copy(alpha = 0.1f * securityPulse),
-                                Color.Transparent
-                            )
-                        ),
-                        radius = outerCircleRadius * 0.7f
-                    )
-
-                    // Protection rings
-                    drawCircle(
-                        color = tertiaryColor.copy(alpha = 0.6f * securityPulse),
-                        radius = outerCircleRadius * 0.6f,
-                        style = Stroke(width = 2f)
-                    )
-
-                    drawCircle(
-                        color = tertiaryColor.copy(alpha = 0.3f * securityPulse),
-                        radius = outerCircleRadius * 0.7f,
-                        style = Stroke(width = 1f)
-                    )
-
-                    // Scanner line effect
-                    drawLine(
-                        color = QuantumColors.ScannerLine,
-                        start = Offset(center.x - outerCircleRadius * 0.6f, center.y + scannerPosition),
-                        end = Offset(center.x + outerCircleRadius * 0.6f, center.y + scannerPosition),
-                        strokeWidth = 2f,
-                        cap = StrokeCap.Round
-                    )
-                }
-
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                            CircleShape
-                        )
-                        .padding(16.dp)
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "QUANTUM SECURE",
+                        "Protected Data",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        fontWeight = FontWeight.Bold
+                        color = onSurfaceColor,
+                        fontWeight = FontWeight.Medium
                     )
-                    Text(
-                        "Advanced Protection",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Increased Box height and added scrolling
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp) // Increased height
+                            .background(Color.DarkGray.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState()), // Enables scrolling
+                        contentAlignment = Alignment.Center
+                    ) {
+                        SelectionContainer { // Allows text selection
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    color = primaryColor,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = responseText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = onSurfaceColor.copy(alpha = 0.75f)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isLoading = true
+                                try {
+                                    delay(1000)
+                                    val response = RetrofitClient.create(context).getProtectedData()
+
+                                    response.let {
+                                        val username = it.username ?: "Unknown"
+                                        val email = it.email ?: "Unknown"
+                                        val rsaKeyHex = it.publicKeyRSA.base64ToHex().shortenHex() ?: "N/A"
+                                        val dilithiumKeyHex = it.publicKeyDilithium.base64ToHex().shortenHex()?: "N/A"
+
+                                        responseText = """
+                                                                            🔐 User: $username
+                                                                            🔐 email: $email
+                                                                            🔑 RSA Public Key: 
+                                                                            $rsaKeyHex
+                                                                            
+                                                                            🔑 Dilithium Public Key:
+                                                                            $dilithiumKeyHex
+                                                                        """.trimIndent()
+                                    } ?: run {
+                                        responseText = "Error: Empty response"
+                                    }
+                                } catch (e: Exception) {
+                                    responseText = "Error: ${e.message}"
+                                } finally {
+                                    isLoading = false
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryColor,
+                            contentColor = onPrimaryColor
+                        ),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Access Data", fontWeight = FontWeight.Medium)
+                    }
                 }
             }
 
-            // Rest of the code remains the same...
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Security Details Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(elevation = 1.dp, shape = RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = surfaceColor),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        "Security Details",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = primaryColor,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    SecurityDetailItem("Hybrid Keys", "RSA + Dilithium-3", onSurfaceColor.copy(0.9f), onSurfaceColor.copy(0.6f))
+                    SecurityDetailItem("Key Size", "3072 | 4000(private key)", onSurfaceColor.copy(0.9f), onSurfaceColor.copy(0.6f))
+                    SecurityDetailItem("Claimed NIST Level Quantum Security", "Level 3", onSurfaceColor.copy(0.9f), onSurfaceColor.copy(0.6f))
+                    SecurityDetailItem("Session", "120 minutes", onSurfaceColor.copy(0.9f), onSurfaceColor.copy(0.6f))
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Logout Button
+            TextButton(
+                onClick = {
+                    SecureStorage.clearAuthToken(context)
+                    navController.navigate("auth") {
+                        popUpTo("auth") { inclusive = true }
+                    }
+                },
+                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD32F2F)),
+                modifier = Modifier.fillMaxWidth(0.5f).height(44.dp)
+            ) {
+                Text("Logout", fontWeight = FontWeight.Medium)
+            }
         }
     }
 }
+
+// Function to convert Base64 to Hexadecimal
+fun String.base64ToHex(): String {
+    return Base64.decode(this, Base64.DEFAULT)
+        .joinToString("") { "%02x".format(it) }
+}
+
+fun String.shortenHex(): String {
+    return if (this.length > 20) {
+        "${this.take(20)}....................${this.takeLast(20)}"
+    } else {
+        this // If the key is short, return as is
+    }
+}
+

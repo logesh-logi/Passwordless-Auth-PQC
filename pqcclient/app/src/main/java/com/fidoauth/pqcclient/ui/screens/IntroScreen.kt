@@ -95,7 +95,7 @@ fun IntroScreen(navController: NavController) {
                 )
             ) {
                 Text(
-                    "Start Demo",
+                    "Start Application",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold

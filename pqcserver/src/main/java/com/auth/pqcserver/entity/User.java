@@ -16,12 +16,14 @@ public class User {
     private String username;
 
     private String challenge;
+    private String email;
 
     public User() {}
 
-    public User(String username, String challenge) {
+    public User(String username, String challenge, String email) {
         this.username = username;
         this.challenge = challenge;
+        this.email = email;
     }
 
 }
