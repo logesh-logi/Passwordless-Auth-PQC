@@ -1,5 +1,6 @@
 package com.fidoauth.pqcclient.viewmodel
 
+import android.util.Log
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -23,15 +24,14 @@ import java.util.concurrent.Executor
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Authentication state
+    private val TAG = "AuthViewModel"
+
     private val _authStatus = MutableStateFlow("")
     val authStatus: StateFlow<String> = _authStatus
 
-    // Loading state
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // Animation states
     private val _showKeyGeneration = MutableStateFlow(false)
     val showKeyGeneration: StateFlow<Boolean> = _showKeyGeneration
 
@@ -41,41 +41,39 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _showSuccess = MutableStateFlow(false)
     val showSuccess: StateFlow<Boolean> = _showSuccess
 
-    /**
-     * Handles user registration with animations and biometric authentication.
-     */
     fun registerUser(activity: FragmentActivity, username: String, email: String) {
         viewModelScope.launch {
             resetState()
             _isLoading.value = true
+            Log.d(TAG, "Starting registration for user: $username")
 
             try {
                 val context = getApplication<Application>().applicationContext
                 val authService = RetrofitClient.create(context)
 
-                // Step 1: Request challenge from server
+                Log.d(TAG, "Requesting challenge from server...")
                 val challengeDto: RegistrationRequestDto = authService.startRegistration(RegisterDto(username, email))
+                Log.d(TAG, "Received challenge: ${challengeDto.challenge}")
 
-                // Step 2: Perform biometric authentication immediately
                 if (!performBiometricAuth(activity)) {
+                    Log.e(TAG, "Biometric authentication failed")
                     _authStatus.value = "Error: Biometric authentication failed"
                     _isLoading.value = false
                     return@launch
                 }
 
-                // Step 3: Show key generation animation
                 _showKeyGeneration.value = true
-                delay(2000)  // Delay for better visibility
+                Log.d(TAG, "Biometric authentication successful. Generating keys...")
+                delay(2000)
 
-                // Step 4: Generate keys and sign the challenge
                 val challenge = challengeDto.challenge
                 val signatureResult = CryptoManager.generateKeysAndSign(context, challenge)
+                Log.d(TAG, "Generated keys and signatures successfully")
 
-                // Step 5: Show server communication animation
                 _showServerComm.value = true
+                Log.d(TAG, "Sending registration completion request...")
                 delay(1500)
 
-                // Step 6: Send registration completion request
                 val registrationResponseDto = RegistrationResponseDto(
                     userid = challengeDto.userid,
                     challenge = challenge,
@@ -86,15 +84,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 val result = authService.finishRegistration(registrationResponseDto, username)
+                Log.d(TAG, "Registration successful. Token received.")
 
-                // Store token securely
                 SecureStorage.saveAuthToken(context, result.token)
 
-                // Step 7: Show success animation
                 delay(1000)
                 _showSuccess.value = true
                 _authStatus.value = "Success: Registration completed. Token stored securely."
+                Log.d(TAG, "Registration process completed successfully")
+
             } catch (e: Exception) {
+                Log.e(TAG, "Registration failed: ${e.message}", e)
                 handleFailure("Error: Registration failed - ${e.message}")
             } finally {
                 _isLoading.value = false
@@ -102,41 +102,39 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Handles user login with animations and biometric authentication.
-     */
     fun loginUser(activity: FragmentActivity, username: String) {
         viewModelScope.launch {
             resetState()
             _isLoading.value = true
+            Log.d(TAG, "Starting login for user: $username")
 
             try {
                 val context = getApplication<Application>().applicationContext
                 val authService = RetrofitClient.create(context)
 
-                // Step 1: Request challenge from server
+                Log.d(TAG, "Requesting login challenge from server...")
                 val challengeDto = authService.startLogin(username)
+                Log.d(TAG, "Received challenge: ${challengeDto.challenge}")
 
-                // Step 2: Perform biometric authentication immediately
                 if (!performBiometricAuth(activity)) {
+                    Log.e(TAG, "Biometric authentication failed")
                     _authStatus.value = "Error: Biometric authentication failed"
                     _isLoading.value = false
                     return@launch
                 }
 
-                // Step 3: Show key generation animation
                 _showKeyGeneration.value = true
-                delay(2000)  // Delay for better visibility
+                Log.d(TAG, "Biometric authentication successful. Signing challenge...")
+                delay(2000)
 
-                // Step 4: Sign challenge using stored keys
                 val challenge = challengeDto.challenge
                 val signatureResult = CryptoManager.signForLogin(context, challenge)
+                Log.d(TAG, "Signed challenge successfully")
 
-                // Step 5: Show server communication animation
                 _showServerComm.value = true
+                Log.d(TAG, "Sending login request...")
                 delay(1500)
 
-                // Step 6: Send login request
                 val loginRequestDto = LoginResponseDto(
                     userid = challengeDto.userid,
                     signatureRSA = signatureResult.rsaSignature,
@@ -144,15 +142,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 val result = authService.finishLogin(loginRequestDto, username)
+                Log.d(TAG, "Login successful. Token received.")
 
-                // Store token securely
                 SecureStorage.saveAuthToken(context, result.token)
 
-                // Step 7: Show success animation
                 delay(1000)
                 _showSuccess.value = true
                 _authStatus.value = "Success: Logged in. Token stored securely."
+                Log.d(TAG, "Login process completed successfully")
+
             } catch (e: Exception) {
+                Log.e(TAG, "Login failed: ${e.message}", e)
                 handleFailure("Error: Login failed - ${e.message}")
             } finally {
                 _isLoading.value = false
@@ -160,9 +160,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Performs biometric authentication and immediately handles failures.
-     */
+    fun resetState() {
+        Log.d(TAG, "Resetting authentication state")
+        _authStatus.value = ""
+        _showKeyGeneration.value = false
+        _showServerComm.value = false
+        _showSuccess.value = false
+        _isLoading.value = false
+    }
+
     private suspend fun performBiometricAuth(activity: FragmentActivity): Boolean =
         suspendCoroutine { continuation ->
             val executor: Executor = ContextCompat.getMainExecutor(activity)
@@ -176,39 +182,30 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val biometricPrompt = BiometricPrompt(activity, executor,
                 object : BiometricPrompt.AuthenticationCallback() {
                     override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        _authStatus.value = "Biometric verification successful"
+                        Log.d(TAG, "Biometric authentication succeeded")
                         continuation.resume(true)
                     }
 
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        Log.e(TAG, "Biometric authentication error: $errString")
                         handleFailure("Biometric verification failed: $errString")
                         continuation.resume(false)
                     }
 
                     override fun onAuthenticationFailed() {
+                        Log.e(TAG, "Biometric authentication failed")
                         handleFailure("Biometric verification failed")
                         continuation.resume(false)
                     }
                 })
 
+            Log.d(TAG, "Launching biometric authentication prompt")
             biometricPrompt.authenticate(promptInfo)
         }
 
-    /**
-     * Resets all state values before starting authentication.
-     */
-    private fun resetState() {
-        _authStatus.value = ""
-        _showKeyGeneration.value = false
-        _showServerComm.value = false
-        _showSuccess.value = false
-    }
-
-    /**
-     * Handles errors and resets UI animations immediately.
-     */
     private fun handleFailure(message: String) {
-        _authStatus.value = message
+        Log.e(TAG, message)
+        _authStatus.value = if (!message.startsWith("Error:")) "Error: $message" else message
         _showKeyGeneration.value = false
         _showServerComm.value = false
         _showSuccess.value = false

@@ -5,6 +5,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.fidoauth.pqcclient.auth.SecureStorage
 import com.fidoauth.pqcclient.ui.screens.AuthScreen
 import com.fidoauth.pqcclient.ui.screens.DashboardScreen
 import com.fidoauth.pqcclient.ui.screens.IntroScreen
@@ -16,9 +17,11 @@ import kotlinx.coroutines.launch
 fun AppNavigation(activity: FragmentActivity) {
     val navController = rememberNavController()
 
-    // Add a splash screen for initial entry
     var showSplash by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
+
+    val isLoggedIn = SecureStorage.getAuthToken(activity.applicationContext) != null
+    val startDestination = if (isLoggedIn) "dashboard" else "intro"
 
     LaunchedEffect(key1 = true) {
         coroutineScope.launch {
@@ -30,10 +33,10 @@ fun AppNavigation(activity: FragmentActivity) {
     if (showSplash) {
         SplashScreen()
     } else {
-        NavHost(navController = navController, startDestination = "intro") {
+        NavHost(navController = navController, startDestination = startDestination) {
             composable("intro") { IntroScreen(navController) }
             composable("auth") { AuthScreen(navController, activity) }
-            composable("dashboard") { DashboardScreen(navController) }
+            composable("dashboard") { DashboardScreen(navController, activity) }
         }
     }
 }

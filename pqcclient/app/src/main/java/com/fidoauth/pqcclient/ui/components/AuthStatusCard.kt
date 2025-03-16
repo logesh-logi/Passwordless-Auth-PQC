@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun AuthStatusCard(statusMessage: String) {
-    val isSuccess = statusMessage.startsWith("Success")
+    val isSuccess = statusMessage.startsWith("Success:")
 
     Card(
         colors = CardDefaults.cardColors(

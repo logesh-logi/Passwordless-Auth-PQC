@@ -40,8 +40,65 @@ fun AuthScreen(navController: NavController, activity: FragmentActivity) {
     var registerEmail by remember { mutableStateOf("") }
     var loginUsername by remember { mutableStateOf("") }
 
+    // Add validation state
+    var registerUsernameError by remember { mutableStateOf<String?>(null) }
+    var registerEmailError by remember { mutableStateOf<String?>(null) }
+    var loginUsernameError by remember { mutableStateOf<String?>(null) }
+
+    // Validate function that returns true if all validations pass
+    val validateRegisterForm = {
+        val usernameResult = validateUsername(registerUsername)
+        val emailResult = validateEmail(registerEmail)
+
+        registerUsernameError = if (!usernameResult.isValid) usernameResult.errorMessage else null
+        registerEmailError = if (!emailResult.isValid) emailResult.errorMessage else null
+
+        usernameResult.isValid && emailResult.isValid
+    }
+
+    val validateLoginForm = {
+        val usernameResult = validateUsername(loginUsername)
+        loginUsernameError = if (!usernameResult.isValid) usernameResult.errorMessage else null
+        usernameResult.isValid
+    }
+
     // Flag to determine if the auth process has started
     val authStarted = showKeyGeneration || showServerComm || showSuccess
+
+    // Function to reset form fields and errors
+    val resetFormFields = {
+        registerUsername = ""
+        registerEmail = ""
+        loginUsername = ""
+        registerUsernameError = null
+        registerEmailError = null
+        loginUsernameError = null
+    }
+
+    // Reset state when navigating to dashboard
+    val navigateToDashboard = {
+        // Reset UI state in ViewModel
+        authViewModel.resetState()
+        // Reset form fields
+        resetFormFields()
+        // Navigate to dashboard
+        navController.navigate("dashboard") {
+            // Pop up to start destination to avoid back stack issues
+            popUpTo(navController.graph.startDestinationId) {
+                saveState = false
+            }
+            // Avoid duplicate destinations
+            launchSingleTop = true
+        }
+    }
+
+    // Effect to clear state when the screen is disposed (navigating away)
+    DisposableEffect(navController) {
+        onDispose {
+            authViewModel.resetState()
+            // Form fields will be reset naturally when the composable is disposed
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -70,7 +127,15 @@ fun AuthScreen(navController: NavController, activity: FragmentActivity) {
             // Auth mode selector
             AuthModeSelector(
                 isRegisterMode = isRegisterMode,
-                onModeChange = { isRegisterMode = it }
+                onModeChange = {
+                    isRegisterMode = it
+                    // Reset state when switching between login and register modes
+                    authViewModel.resetState()
+                    // Clear validation errors when switching modes
+                    registerUsernameError = null
+                    registerEmailError = null
+                    loginUsernameError = null
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -81,14 +146,44 @@ fun AuthScreen(navController: NavController, activity: FragmentActivity) {
                 registerUsername = registerUsername,
                 registerEmail = registerEmail,
                 loginUsername = loginUsername,
-                onRegisterUsernameChange = { registerUsername = it },
-                onRegisterEmailChange = { registerEmail = it },
-                onLoginUsernameChange = { loginUsername = it },
+                registerUsernameError = registerUsernameError,
+                registerEmailError = registerEmailError,
+                loginUsernameError = loginUsernameError,
+                onRegisterUsernameChange = {
+                    registerUsername = it
+                    if (registerUsernameError != null) {
+                        // Clear error when user starts typing
+                        registerUsernameError = null
+                    }
+                },
+                onRegisterEmailChange = {
+                    registerEmail = it
+                    if (registerEmailError != null) {
+                        // Clear error when user starts typing
+                        registerEmailError = null
+                    }
+                },
+                onLoginUsernameChange = {
+                    loginUsername = it
+                    if (loginUsernameError != null) {
+                        // Clear error when user starts typing
+                        loginUsernameError = null
+                    }
+                },
                 isLoading = isLoading,
-                onRegister = { authViewModel.registerUser(activity, registerUsername, registerEmail) },
-                onLogin = { authViewModel.loginUser(activity, loginUsername) }
+                onRegister = {
+                    if (validateRegisterForm()) {
+                        authViewModel.registerUser(activity, registerUsername, registerEmail)
+                    }
+                },
+                onLogin = {
+                    if (validateLoginForm()) {
+                        authViewModel.loginUser(activity, loginUsername)
+                    }
+                }
             )
 
+            // Remaining code stays the same
             Spacer(modifier = Modifier.height(32.dp))
 
             // Only show the authentication process section if auth has started
@@ -123,7 +218,7 @@ fun AuthScreen(navController: NavController, activity: FragmentActivity) {
                 visible = showSuccess,
                 enter = fadeIn(animationSpec = tween(300)) + expandVertically(animationSpec = tween(500))
             ) {
-                DashboardButton(onClick = { navController.navigate("dashboard") })
+                DashboardButton(onClick = navigateToDashboard)
             }
 
             // Status message
@@ -226,12 +321,16 @@ fun AuthModeSelector(
     }
 }
 
+
 @Composable
 fun AuthFormCard(
     isRegisterMode: Boolean,
     registerUsername: String,
     registerEmail: String,
     loginUsername: String,
+    registerUsernameError: String?,
+    registerEmailError: String?,
+    loginUsernameError: String?,
     onRegisterUsernameChange: (String) -> Unit,
     onRegisterEmailChange: (String) -> Unit,
     onLoginUsernameChange: (String) -> Unit,
@@ -258,14 +357,16 @@ fun AuthFormCard(
                     value = registerUsername,
                     onValueChange = onRegisterUsernameChange,
                     label = "Username",
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    errorMessage = registerUsernameError
                 )
 
                 AuthTextField(
                     value = registerEmail,
                     onValueChange = onRegisterEmailChange,
                     label = "Email",
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    errorMessage = registerEmailError
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -281,7 +382,8 @@ fun AuthFormCard(
                     value = loginUsername,
                     onValueChange = onLoginUsernameChange,
                     label = "Username",
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    errorMessage = loginUsernameError
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -301,23 +403,40 @@ fun AuthTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    enabled: Boolean
+    enabled: Boolean,
+    errorMessage: String? = null
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = Modifier.fillMaxWidth(),
-        enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
-        colors = TextFieldDefaults.colors(
-            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-            focusedLabelColor = MaterialTheme.colorScheme.primary
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            isError = errorMessage != null,
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                errorIndicatorColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error
+            )
         )
-    )
-}
 
+        // Error message
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier
+                    .padding(start = 4.dp, top = 4.dp)
+                    .fillMaxWidth()
+            )
+        }
+    }
+}
 @Composable
 fun AuthButton(
     text: String,
@@ -377,5 +496,29 @@ fun LoadingOverlay() {
         )
     }
 }
+
+fun validateUsername(username: String): ValidationResult {
+    return when {
+        username.isBlank() -> ValidationResult(false, "Username cannot be empty")
+        username.length < 3 -> ValidationResult(false, "Username must be at least 3 characters")
+        !username.matches(Regex("^[a-zA-Z0-9._-]+$")) -> ValidationResult(false, "Username can only contain letters, numbers, dots, hyphens, and underscores")
+        else -> ValidationResult(true)
+    }
+}
+
+fun validateEmail(email: String): ValidationResult {
+    return when {
+        email.isBlank() -> ValidationResult(false, "Email cannot be empty")
+        !email.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$")) ->
+            ValidationResult(false, "Please enter a valid email address")
+        else -> ValidationResult(true)
+    }
+}
+
+// A simple data class to hold validation results
+data class ValidationResult(
+    val isValid: Boolean,
+    val errorMessage: String = ""
+)
 
 

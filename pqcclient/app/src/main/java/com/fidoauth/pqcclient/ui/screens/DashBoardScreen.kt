@@ -1,15 +1,12 @@
 package com.fidoauth.pqcclient.ui.screens
 
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,57 +16,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.fidoauth.pqcclient.auth.SecureStorage
 import com.fidoauth.pqcclient.network.RetrofitClient
 import com.fidoauth.pqcclient.ui.components.SecurityDetailItem
+import com.fidoauth.pqcclient.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.util.Base64
+import androidx.compose.foundation.Canvas
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Security
+
 
 @Composable
-fun MinimalistSecurityIndicator() {
-    val infiniteTransition = rememberInfiniteTransition(label = "securityAnimation")
-    val pulseEffect by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOutQuad),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseEffect"
-    )
+fun DashboardScreen(navController: NavController, activity: FragmentActivity) {
+    // Get reference to the AuthViewModel
+    val authViewModel: AuthViewModel = viewModel(activity)
 
-    val primaryColor = MaterialTheme.colorScheme.primary
-
-    Box(
-        modifier = Modifier
-            .size(90.dp)
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(90.dp)) {
-            drawCircle(
-                color = primaryColor.copy(alpha = 0.2f * pulseEffect),
-                radius = size.minDimension / 2f
-            )
-            drawCircle(
-                color = primaryColor.copy(alpha = 0.5f),
-                radius = size.minDimension / 3f
-            )
-        }
-
-        Icon(
-            imageVector = Icons.Default.Security,
-            contentDescription = "Security Indicator",
-            tint = primaryColor,
-            modifier = Modifier.size(30.dp)
-        )
-    }
-}
-
-@Composable
-fun DashboardScreen(navController: NavController) {
     val context = LocalContext.current
     var responseText by remember { mutableStateOf("No data fetched yet") }
     var isLoading by remember { mutableStateOf(false) }
@@ -80,6 +46,12 @@ fun DashboardScreen(navController: NavController) {
     val backgroundColor = MaterialTheme.colorScheme.background
     val surfaceColor = MaterialTheme.colorScheme.surface
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    // Effect to make sure UI state is reset when entering dashboard
+    LaunchedEffect(Unit) {
+        // Reset the auth UI state when entering the dashboard
+        authViewModel.resetState()
+    }
 
     Column(
         modifier = Modifier
@@ -123,13 +95,13 @@ fun DashboardScreen(navController: NavController) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp) // Increased height
+                            .height(200.dp)
                             .background(Color.DarkGray.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
                             .padding(16.dp)
-                            .verticalScroll(rememberScrollState()), // Enables scrolling
+                            .verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center
                     ) {
-                        SelectionContainer { // Allows text selection
+                        SelectionContainer {
                             if (isLoading) {
                                 CircularProgressIndicator(
                                     color = primaryColor,
@@ -163,14 +135,14 @@ fun DashboardScreen(navController: NavController) {
                                         val dilithiumKeyHex = it.publicKeyDilithium.base64ToHex().shortenHex()?: "N/A"
 
                                         responseText = """
-                                                                            🔐 User: $username
-                                                                            🔐 email: $email
-                                                                            🔑 RSA Public Key: 
-                                                                            $rsaKeyHex
-                                                                            
-                                                                            🔑 Dilithium Public Key:
-                                                                            $dilithiumKeyHex
-                                                                        """.trimIndent()
+                                            🔐 User: $username
+                                            🔐 email: $email
+                                            🔑 RSA Public Key: 
+                                            $rsaKeyHex
+                                            
+                                            🔑 Dilithium Public Key:
+                                            $dilithiumKeyHex
+                                        """.trimIndent()
                                     } ?: run {
                                         responseText = "Error: Empty response"
                                     }
@@ -223,10 +195,16 @@ fun DashboardScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Logout Button
+            // Logout Button - Modified to reset auth state
             TextButton(
                 onClick = {
+                    // Reset the auth UI state before navigating
+                    authViewModel.resetState()
+
+                    // Clear auth token
                     SecureStorage.clearAuthToken(context)
+
+                    // Navigate to auth screen
                     navController.navigate("auth") {
                         popUpTo("auth") { inclusive = true }
                     }
@@ -237,6 +215,47 @@ fun DashboardScreen(navController: NavController) {
                 Text("Logout", fontWeight = FontWeight.Medium)
             }
         }
+    }
+}
+
+@Composable
+fun MinimalistSecurityIndicator() {
+    val infiniteTransition = rememberInfiniteTransition(label = "securityAnimation")
+    val pulseEffect by infiniteTransition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutQuad),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseEffect"
+    )
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = Modifier
+            .size(90.dp)
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(90.dp)) {
+            drawCircle(
+                color = primaryColor.copy(alpha = 0.2f * pulseEffect),
+                radius = size.minDimension / 2f
+            )
+            drawCircle(
+                color = primaryColor.copy(alpha = 0.5f),
+                radius = size.minDimension / 3f
+            )
+        }
+
+        Icon(
+            imageVector = Icons.Default.Security,
+            contentDescription = "Security Indicator",
+            tint = primaryColor,
+            modifier = Modifier.size(30.dp)
+        )
     }
 }
 
